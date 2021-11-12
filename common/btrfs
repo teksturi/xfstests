@@ -113,6 +113,16 @@ _require_btrfs_fs_sysfs()
 
 }
 
+_require_btrfs_no_compress()
+{
+	if [ "$FSTYP" != "btrfs" ]; then
+		return
+	fi
+
+	_scratch_mount_options | grep -q "compress"
+	[ $? -eq 0 ] && _notrun "This test requires no compression enabled"
+}
+
 _check_btrfs_filesystem()
 {
 	device=$1
