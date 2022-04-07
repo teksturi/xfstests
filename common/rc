@@ -140,6 +140,9 @@ case "$FSTYP" in
 	 ;;
     pvfs2)
 	;;
+    ntfs|ntfs3)
+	 [ "$MKFS_NTFS_PROG" = "" ] && _fatal "mkfs.ntfs not found"
+	 ;;
     ubifs)
 	[ "$UBIUPDATEVOL_PROG" = "" ] && _fatal "ubiupdatevol not found"
 	;;
@@ -667,6 +670,9 @@ _test_mkfs()
     ext2|ext3|ext4)
 	$MKFS_PROG -t $FSTYP -- -F $MKFS_OPTIONS $* $TEST_DEV
 	;;
+    ntfs|ntfs3)
+	$MKFS_NTFS_PROG $MKFS_OPTIONS $* $TEST_DEV > /dev/null
+	;;
     *)
 	yes | $MKFS_PROG -t $FSTYP -- $MKFS_OPTIONS $* $TEST_DEV
 	;;
@@ -705,6 +711,9 @@ _mkfs_dev()
     xfs)
 	$MKFS_PROG -t $FSTYP -- -f $MKFS_OPTIONS $* \
 		2>$tmp.mkfserr 1>$tmp.mkfsstd
+	;;
+    ntfs|ntfs3)
+	$MKFS_NTFS_PROG $MKFS_OPTIONS $* 2>$tmp.mkfserr 1>$tmp.mkfsstd
 	;;
     *)
 	yes | $MKFS_PROG -t $FSTYP -- $MKFS_OPTIONS $* \
@@ -802,6 +811,10 @@ _scratch_mkfs()
 	ocfs2)
 		mkfs_cmd="yes | $MKFS_PROG -t $FSTYP --"
 		mkfs_filter="grep -v -e ^mkfs\.ocfs2"
+		;;
+	ntfs|ntfs3)
+		mkfs_cmd="$MKFS_NTFS_PROG"
+		mkfs_filter="cat"
 		;;
 	*)
 		mkfs_cmd="yes | $MKFS_PROG -t $FSTYP --"
@@ -1068,6 +1081,13 @@ _scratch_mkfs_sized()
 	bcachefs)
 		$MKFS_PROG -t $FSTYP -- $MKFS_OPTIONS --fs_size=$fssize --block_size=$blocksize $SCRATCH_DEV
 		;;
+	ntfs|ntfs3)
+		local sector_size=`blockdev --getss $SCRATCH_DEV`
+		local num_of_sector=`expr $fssize / $sector_size`
+
+		${MKFS_NTFS_PROG} $MKFS_OPTIONS -s $sector_size -c $blocksize \
+				  $SCRATCH_DEV $num_of_sector
+		;;
 	*)
 		_notrun "Filesystem $FSTYP not supported in _scratch_mkfs_sized"
 		;;
@@ -1150,6 +1170,9 @@ _scratch_mkfs_blocksized()
 		${MKFS_PROG} -t $FSTYP $MKFS_OPTIONS --block_size=$blocksize \
 								$SCRATCH_DEV
 		;;
+	ntfs|ntfs3)
+		${MKFS_NTFS_PROG} -F $MKFS_OPTIONS -c $blocksize $SCRATCH_DEV
+		;;
 	*)
 		_notrun "Filesystem $FSTYP not supported in _scratch_mkfs_blocksized"
 		;;
@@ -1200,6 +1223,10 @@ _repair_scratch_fs()
 	# With bcachefs, if fsck detects any errors we consider it a bug and we
 	# want the test to fail:
 	_check_scratch_fs
+	;;
+    ntfs|ntfs3)
+	$FSCK_NTFS_PROG $SCRATCH_DEV
+	return $?
 	;;
     *)
 	local dev=$SCRATCH_DEV
@@ -2888,18 +2915,22 @@ _mount_or_remount_rw()
 _check_generic_filesystem()
 {
     local device=$1
+    local fsck_type=$2
 
     # If type is set, we're mounted
     local type=`_fs_type $device`
     local ok=1
 
+    if [ -z "$fsck_type" ]; then
+       fsck_type="$FSTYP"
+    fi
     if [ "$type" = "$FSTYP" ]
     then
         # mounted ...
         local mountpoint=`_umount_or_remount_ro $device`
     fi
 
-    fsck -t $FSTYP $FSCK_OPTIONS $device >$tmp.fsck 2>&1
+    fsck -t $fsck_type $FSCK_OPTIONS $device >$tmp.fsck 2>&1
     if [ $? -ne 0 ]
     then
 	_log_err "_check_generic_filesystem: filesystem on $device is inconsistent"
@@ -3026,6 +3057,9 @@ _check_test_fs()
     ubifs)
 	# there is no fsck program for ubifs yet
 	;;
+    ntfs|ntfs3)
+	_check_generic_filesystem $TEST_DEV ntfs
+	;;
     *)
 	_check_generic_filesystem $TEST_DEV
 	;;
@@ -3083,6 +3117,9 @@ _check_scratch_fs()
 	;;
     ubifs)
 	# there is no fsck program for ubifs yet
+	;;
+    ntfs|ntfs3)
+	_check_generic_filesystem $device ntfs
 	;;
     *)
 	_check_generic_filesystem $device
@@ -4421,6 +4458,9 @@ _label_get_max()
 	case $FSTYP in
 	xfs)
 		echo 12
+		;;
+	ntfs|ntfs3)
+		echo 32
 		;;
 	btrfs)
 		echo 255

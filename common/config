@@ -264,6 +264,8 @@ export MKFS_REISER4_PROG=$(type -P mkfs.reiser4)
 export E2FSCK_PROG=$(type -P e2fsck)
 export TUNE2FS_PROG=$(type -P tune2fs)
 export FSCK_OVERLAY_PROG=$(type -P fsck.overlay)
+export MKFS_NTFS_PROG=$(type -P mkfs.ntfs)
+export FSCK_NTFS_PROG=$(type -P ntfsfix)
 
 # SELinux adds extra xattrs which can mess up our expected output.
 # So, mount with a context, and they won't be created.
@@ -345,6 +347,12 @@ _mount_opts()
 	ubifs)
 		export MOUNT_OPTIONS=$UBIFS_MOUNT_OPTIONS
 		;;
+	ntfs3)
+		# acls aren't turned on by default on ntfs3
+                echo $NTFS_MOUNT_OPTIONS
+                echo $NTFS3_MOUNT_OPTIONS
+		export MOUNT_OPTIONS="-o acl $NTFS_MOUNT_OPTIONS"
+		;;
 	*)
 		;;
 	esac
@@ -418,6 +426,9 @@ _mkfs_opts()
 	bcachefs)
 		export MKFS_OPTIONS=$BCACHEFS_MKFS_OPTIONS
 		;;
+	ntfs|ntfs3)
+		export MKFS_OPTIONS=$NTFS_MKFS_OPTIONS
+		;;
 	*)
 		;;
 	esac
@@ -433,6 +444,9 @@ _fsck_opts()
 		export FSCK_OPTIONS="--yes"
 		;;
 	f2fs)
+		export FSCK_OPTIONS=""
+		;;
+	ntfs|ntfs3)
 		export FSCK_OPTIONS=""
 		;;
 	*)
